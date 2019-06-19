@@ -9,8 +9,9 @@
 实现LaneNet的数据解析类
 """
 import tensorflow as tf
+import os
 
-from config import global_config
+from ..config import global_config
 
 CFG = global_config.cfg
 VGG_MEAN = [123.68, 116.779, 103.939]
@@ -21,12 +22,13 @@ class DataSet(object):
     实现数据集类
     """
 
-    def __init__(self, dataset_info_file, batch_size):
+    def __init__(self, dataset_info_file, batch_size, data_bp=""):
         """
 
         :param dataset_info_file:
         """
         self._dataset_info_file = dataset_info_file
+        self._data_bp = data_bp
         self._batch_size = batch_size
         self._img_list = self._init_dataset()
         self._next_batch_loop_count = 0
@@ -46,7 +48,10 @@ class DataSet(object):
         with open(self._dataset_info_file, 'r') as file:
             for _info in file:
                 info_tmp = _info.strip(' ').split()
-                img_list.append(info_tmp[0][1:])
+                #img_list.append(info_tmp[0][1:])
+                # eliminate the 1st character bc for some reason the list files in the 
+                # culane dset all contain a preceding / 
+                img_list.append(os.path.join(self._data_bp, info_tmp[0][1:]))
 
         self._len = len(img_list)
 

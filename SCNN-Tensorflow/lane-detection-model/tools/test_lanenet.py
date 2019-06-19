@@ -20,9 +20,9 @@ try:
 except ImportError:
     pass
 
-from lanenet_model import lanenet_merge_model
-from config import global_config
-from data_provider import lanenet_data_processor_test
+from ..lanenet_model import lanenet_merge_model
+from ..config import global_config
+from ..data_provider import lanenet_data_processor_test
 
 
 CFG = global_config.cfg
@@ -35,7 +35,8 @@ def init_args():
     :return:
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image_path', type=str, help='The image path or the src image save dir')
+    parser.add_argument('--image_path', type=str, help='Path to the file listing the names of images')
+    parser.add_argument('--image_bp', type=str, help='The base path relative to which the images in `image_path` are found')
     parser.add_argument('--weights_path', type=str, help='The model weights path')
     parser.add_argument('--is_batch', type=str, help='If test a batch of images', default='false')
     parser.add_argument('--batch_size', type=int, help='The batch size of the test images', default=8)
@@ -46,7 +47,7 @@ def init_args():
 
 
 
-def test_lanenet(image_path, weights_path, use_gpu, image_list, batch_size, save_dir):
+def test_lanenet(image_path, image_bp, weights_path, use_gpu, image_list, batch_size, save_dir):
 
     """
     :param image_path:
@@ -55,7 +56,7 @@ def test_lanenet(image_path, weights_path, use_gpu, image_list, batch_size, save
     :return:
     """
     
-    test_dataset = lanenet_data_processor_test.DataSet(image_path, batch_size)
+    test_dataset = lanenet_data_processor_test.DataSet(image_path, batch_size, image_bp)
     input_tensor = tf.placeholder(dtype=tf.string, shape=[None], name='input_tensor')
     imgs = tf.map_fn(test_dataset.process_img, input_tensor, dtype=tf.float32)
     phase_tensor = tf.constant('test', tf.string)
@@ -84,8 +85,11 @@ def test_lanenet(image_path, weights_path, use_gpu, image_list, batch_size, save
                                                             feed_dict={input_tensor: paths})
             for cnt, image_name in enumerate(paths):
                 print(image_name)
-                parent_path = os.path.dirname(image_name)
+                parent_path = os.path.dirname(image_name.replace(image_bp, ""))
+                print("save dir", save_dir)
+                print("parent path", parent_path)
                 directory = os.path.join(save_dir, 'vgg_SCNN_DULR_w9', parent_path)
+                print("directory", directory)
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 file_exist = open(os.path.join(directory, os.path.basename(image_name)[:-3] + 'exist.txt'), 'w')
@@ -118,4 +122,4 @@ if __name__ == '__main__':
         for line in g.readlines():
             img_name.append(line.strip())
 
-    test_lanenet(args.image_path, args.weights_path, args.use_gpu, img_name, args.batch_size, save_dir)
+    test_lanenet(args.image_path, args.image_bp or "", args.weights_path, args.use_gpu, img_name, args.batch_size, save_dir)

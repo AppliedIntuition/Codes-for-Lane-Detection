@@ -13,8 +13,8 @@ import math
 
 import tensorflow as tf
 
-from encoder_decoder_model import cnn_basenet
-from config import global_config
+from . import cnn_basenet
+from ..config import global_config
 
 CFG = global_config.cfg
 
