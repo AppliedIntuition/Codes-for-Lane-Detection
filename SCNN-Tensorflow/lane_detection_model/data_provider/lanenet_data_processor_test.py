@@ -51,7 +51,7 @@ class DataSet(object):
                 #img_list.append(info_tmp[0][1:])
                 # eliminate the 1st character bc for some reason the list files in the 
                 # culane dset all contain a preceding / 
-                img_list.append(os.path.join(self._data_bp, info_tmp[0][1:]))
+                img_list.append((self._data_bp, info_tmp[0]))
 
         self._len = len(img_list)
 

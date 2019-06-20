@@ -15,6 +15,9 @@ import math
 import tensorflow as tf
 import glog as log
 import cv2
+import glob
+import tqdm
+
 try:
     from cv2 import cv2
 except ImportError:
@@ -45,14 +48,12 @@ def init_args():
 
     return parser.parse_args()
 
-
-
-def test_lanenet(image_path, image_bp, weights_path, use_gpu, image_list, batch_size, save_dir):
-
+def test_lanenet(image_path, image_bp, weights_path, use_gpu, batch_size, save_dir):
     """
-    :param image_path:
-    :param weights_path:
-    :param use_gpu:
+    :param image_path: path to the txt file containing names of all img files relative to `image_bp`
+    :param image_bp: base path for the image folder
+    :param weights_path: path to find model weights
+    :param use_gpu: bool, whether to run on the gpu
     :return:
     """
     
@@ -78,23 +79,20 @@ def test_lanenet(image_path, image_bp, weights_path, use_gpu, image_list, batch_
     with sess.as_default():
         sess.run(tf.global_variables_initializer())
         saver.restore(sess=sess, save_path=weights_path)
-        for i in range(math.ceil(len(image_list) / batch_size)):
-            print(i)
+        for i in tqdm.tqdm(range(math.ceil(len(test_dataset) / batch_size))):
             paths = test_dataset.next_batch()
+            joined_paths = [os.path.join(*elt) for elt in paths]
             instance_seg_image, existence_output = sess.run([binary_seg_ret, instance_seg_ret],
-                                                            feed_dict={input_tensor: paths})
-            for cnt, image_name in enumerate(paths):
-                print(image_name)
-                parent_path = os.path.dirname(image_name.replace(image_bp, ""))
-                print("save dir", save_dir)
-                print("parent path", parent_path)
-                directory = os.path.join(save_dir, 'vgg_SCNN_DULR_w9', parent_path)
-                print("directory", directory)
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
-                file_exist = open(os.path.join(directory, os.path.basename(image_name)[:-3] + 'exist.txt'), 'w')
+                                                            feed_dict={input_tensor: joined_paths})
+            for cnt, image_data in enumerate(paths):
+                bp, imname = image_data
+                savepath = os.path.join(save_dir, imname)
+                if not os.path.exists(os.path.dirname(savepath)):
+                    os.makedirs(os.path.dirname(savepath))
+                filename_exist = os.path.splitext(savepath)[0] + '.exist.txt'
+                file_exist = open(filename_exist, 'w')
                 for cnt_img in range(4):
-                    cv2.imwrite(os.path.join(directory, os.path.basename(image_name)[:-4] + '_' + str(cnt_img + 1) + '_avg.png'),
+                    cv2.imwrite(os.path.splitext(savepath)[0] + '_' + str(cnt_img + 1) + '_avg.png',
                             (instance_seg_image[cnt, :, :, cnt_img + 1] * 255).astype(int))
                     if existence_output[cnt, cnt_img] > 0.5:
                         file_exist.write('1 ')
@@ -117,9 +115,9 @@ if __name__ == '__main__':
     if args.save_dir is not None:
         save_dir = args.save_dir
 
-    img_name = []
-    with open(str(args.image_path), 'r') as g:
-        for line in g.readlines():
-            img_name.append(line.strip())
+    #img_name = []
+    #with open(str(args.image_path), 'r') as g:
+    #    for line in g.readlines():
+    #        img_name.append(line.strip())
 
-    test_lanenet(args.image_path, args.image_bp or "", args.weights_path, args.use_gpu, img_name, args.batch_size, save_dir)
+    test_lanenet(args.image_path, args.image_bp or "", args.weights_path, args.use_gpu, args.batch_size, save_dir)
