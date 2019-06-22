@@ -19,6 +19,7 @@ from ..config import global_config
 CFG = global_config.cfg
 
 
+# anelise: this is the meat of the model. 
 class VGG16Encoder(cnn_basenet.CNNBaseModel):
     """
     实现了一个基于vgg16的特征编码类
@@ -116,6 +117,10 @@ class VGG16Encoder(cnn_basenet.CNNBaseModel):
         """
         ret = OrderedDict()
         with tf.variable_scope(name):
+            # anelise: This first part is implementing the VGG16
+            # all these layers are given names. These names are used to match vgg 
+            # pretrained weights with these layers in the file `tools/train_lanenet.py`
+
             # conv stage 1_1
             conv_1_1 = self._conv_stage(input_tensor=input_tensor, k_size=3,
                                         out_dims=64, name='conv1_1')
@@ -191,6 +196,8 @@ class VGG16Encoder(cnn_basenet.CNNBaseModel):
             # conv stage 5_5
             conv_5_5 = self._conv_stage(input_tensor=conv_5_4, k_size=1,
                                         out_dims=128, name='conv5_5')  # 8 x 36 x 100 x 128
+
+            # anelise: this part is SCNN
 
             # add message passing #
 
@@ -308,6 +315,8 @@ class VGG16Encoder(cnn_basenet.CNNBaseModel):
             fc_output = self.fullyconnect(relu_output, 4)
             existence_output = fc_output
 
+            # anelise: lane existence predictions are acheived by adding a softmax to the heatmap,
+            # flattening it into a 1-d vector, and adding a fc layer
             ret['existence_output'] = existence_output
 
         return ret

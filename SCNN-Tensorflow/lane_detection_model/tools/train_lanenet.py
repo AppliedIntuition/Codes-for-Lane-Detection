@@ -185,13 +185,16 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg'):
     val_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
         [val_img, val_label_instance, val_label_existence], capacity=2 * CFG.TRAIN.GPU_NUM,
         num_threads=CFG.TRAIN.CPU_NUM)
+    # I think these are just setting up the computation graphs, not actually running stuff
     with tf.variable_scope(tf.get_variable_scope()):
         for i in range(CFG.TRAIN.GPU_NUM):
             with tf.device('/gpu:%d' % i):
+                # training pass
                 with tf.name_scope('tower_%d' % i) as scope:
                     total_loss, instance_loss, existence_loss, accuracy, accuracy_back, _, out_logits_out, \
                         grad = forward(batch_queue, net, phase, scope, optimizer)
                     tower_grads.append(grad)
+                # val pass
                 with tf.name_scope('test_%d' % i) as scope:
                     val_op_total_loss, val_op_instance_loss, val_op_existence_loss, val_op_accuracy, \
                         val_op_accuracy_back, val_op_IoU, _, _ = forward(val_batch_queue, net, phase, scope)
@@ -232,19 +235,25 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg'):
 
             # 加载预训练参数
             if net_flag == 'vgg' and weights_path is None:
+                # load pretrained vgg weights 
                 pretrained_weights = np.load(
                     './data/vgg16.npy',
                     encoding='latin1').item()
 
                 for vv in tf.trainable_variables():
+                    # traininable variables contains all the variables in the current computation graph 
+                    # marked as trainable 
+                    print ("vv.name", vv.name) # anelise
                     weights = vv.name.split('/')
                     if len(weights) >= 3 and weights[-3] in pretrained_weights:
                         try:
                             weights_key = weights[-3]
                             weights = pretrained_weights[weights_key][0]
+                            # I guess this loads the weights into the corresponding layer
                             _op = tf.assign(vv, weights)
                             sess.run(_op)
                         except Exception as e:
+                            print("Exception while loading vgg", e) #anelise
                             continue
         tf.train.start_queue_runners(sess=sess)
         for epoch in range(CFG.TRAIN.EPOCHS):

@@ -17,6 +17,11 @@ from ..config import global_config
 CFG = global_config.cfg
 
 
+# anelise: As far as I can tell, this does not have any relationship to the
+# actual LaneNet architecture, except perhaps being derived from a shared
+# template 
+# anelise: This model is just SCNN-Tensorflow and has nothing to do with 
+# lanenet. See https://github.com/cardwing/Codes-for-Lane-Detection/issues/89
 class LaneNet(cnn_basenet.CNNBaseModel):
     """
     Lane detection model
@@ -40,18 +45,27 @@ class LaneNet(cnn_basenet.CNNBaseModel):
 
     @staticmethod
     def test_inference(input_tensor, phase, name):
+        # anelise: output from the VGG
         inference_ret = LaneNet.inference(input_tensor, phase, name)
         with tf.variable_scope(name):
             # feed forward to obtain logits
             # Compute loss
 
             decode_logits = inference_ret['prob_output']
+            # anelise: the "channel" dimension here is one per lane 
             binary_seg_ret = tf.nn.softmax(logits=decode_logits)
+            # shape: [None, 288, 800, 5]
+            # batch, h, w, num predicted lanes...why are there 5 here? 
+            print("binary seg shape", binary_seg_ret.get_shape().as_list())
             prob_list = []
             kernel = tf.get_variable('kernel', [9, 9, 1, 1], initializer=tf.constant_initializer(1.0 / 81),
                                      trainable=False)
-
+            # shape: [None, 288, 800, 1]
+            print("binary seg shape after manipulation", tf.expand_dims(binary_seg_ret[:, :, :, 0], axis=3).get_shape().as_list())
+            # shape: [None, 288, 800]
+            #print("binary seg shape testing sthg", binary_seg_ret[:, :, :, 0].get_shape().as_list())
             with tf.variable_scope("convs_smooth"):
+                # anelise: this is taking the first of the 4 dims in the output tensor 
                 prob_smooth = tf.nn.conv2d(tf.cast(tf.expand_dims(binary_seg_ret[:, :, :, 0], axis=3), tf.float32),
                                            kernel, [1, 1, 1, 1], 'SAME')
                 prob_list.append(prob_smooth)
@@ -59,11 +73,19 @@ class LaneNet(cnn_basenet.CNNBaseModel):
             for cnt in range(1, binary_seg_ret.get_shape().as_list()[3]):
                 with tf.variable_scope("convs_smooth", reuse=True):
                     prob_smooth = tf.nn.conv2d(
+                        # this is grabbing and smoothing each of of the other 4 dimensions. P sure this could just be folded
+                        # into the previous block
                         tf.cast(tf.expand_dims(binary_seg_ret[:, :, :, cnt], axis=3), tf.float32), kernel, [1, 1, 1, 1],
                         'SAME')
                     prob_list.append(prob_smooth)
+            # dims: [None, 288, 800, 1, 5]
             processed_prob = tf.stack(prob_list, axis=4)
+            #print("processed_prob", processed_prob.get_shape().as_list())
+            # dims: [None, 288, 800, 5]
             processed_prob = tf.squeeze(processed_prob, axis=3)
+            #print("processed_prob after squeeze", processed_prob.get_shape().as_list())
+
+            # binary seg ret is just a smoothed version of the original output tensor...what is the first thing in this stack?
             binary_seg_ret = processed_prob
 
             # Predict lane existence:
