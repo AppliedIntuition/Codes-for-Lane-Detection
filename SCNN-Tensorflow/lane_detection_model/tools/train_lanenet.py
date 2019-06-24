@@ -19,9 +19,9 @@ import tensorflow as tf
 
 import sys
 
-from config import global_config
-from lanenet_model import lanenet_merge_model
-from data_provider import lanenet_data_processor
+from ..config import global_config
+from ..lanenet_model import lanenet_merge_model
+from ..data_provider import lanenet_data_processor
 
 CFG = global_config.cfg
 
@@ -112,7 +112,7 @@ def forward(batch_queue, net, phase, scope, optimizer=None):
     accuracy = tf.divide(tf.cast(pred_all, tf.float32), tf.cast(gt_all, tf.float32))
     accuracy_back = tf.divide(tf.cast(pred_0, tf.float32), tf.cast(gt_back, tf.float32))
 
-    # Compute mIoU of Lanes
+    #not  Computj mIoU of Lanes
     overlap_1 = pred_1
     union_1 = tf.add(tf.count_nonzero(tf.cast(tf.equal(label_instance_batch, 1),
                                               tf.int32), dtype=tf.int32),
@@ -156,16 +156,19 @@ def forward(batch_queue, net, phase, scope, optimizer=None):
     return total_loss, instance_loss, existence_loss, accuracy, accuracy_back, IoU, out_logits_out, grads
 
 
-def train_net(dataset_dir, weights_path=None, net_flag='vgg'):
-    train_dataset_file = ops.join(dataset_dir, 'train_gt.txt')
-    val_dataset_file = ops.join(dataset_dir, 'val_gt.txt')
+def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=None):
+    if dataset_list_dir is None: 
+        dataset_list_dir = dataset_dir
+
+    train_dataset_file = ops.join(dataset_list_dir, 'train_gt.txt')
+    val_dataset_file = ops.join(dataset_list_dir, 'val_gt.txt')
 
     assert ops.exists(train_dataset_file)
 
     phase = tf.placeholder(dtype=tf.string, shape=None, name='net_phase')
 
-    train_dataset = lanenet_data_processor.DataSet(train_dataset_file)
-    val_dataset = lanenet_data_processor.DataSet(val_dataset_file)
+    train_dataset = lanenet_data_processor.DataSet(train_dataset_file, data_bp=dataset_dir)
+    val_dataset = lanenet_data_processor.DataSet(val_dataset_file, data_bp=dataset_dir)
 
     net = lanenet_merge_model.LaneNet()
 
@@ -194,10 +197,17 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg'):
                     total_loss, instance_loss, existence_loss, accuracy, accuracy_back, _, out_logits_out, \
                         grad = forward(batch_queue, net, phase, scope, optimizer)
                     tower_grads.append(grad)
+                    tf.summary.scalar('total_loss', total_loss)
+                    tf.summary.scalar('instance_loss', instance_loss)
+                    tf.summary.scalar('existence_loss', existence_loss)
+                    tf.summary.scalar('accuracy', accuracy)
+                    tf.summary.scalar('accuracy_back', accuracy_back)
+                    #tf.summary.scalar('grad', grad)
                 # val pass
                 with tf.name_scope('test_%d' % i) as scope:
                     val_op_total_loss, val_op_instance_loss, val_op_existence_loss, val_op_accuracy, \
                         val_op_accuracy_back, val_op_IoU, _, _ = forward(val_batch_queue, net, phase, scope)
+
 
     grads = average_gradients(tower_grads)
 
@@ -223,6 +233,15 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg'):
     sess_config.gpu_options.allocator_type = 'BFC'
 
     with tf.Session(config=sess_config) as sess:
+        # set up tensorboard logging
+        merged = tf.summary.merge_all()
+        # vars to track: 
+        # total_loss, instance_loss, existence_loss, accuracy, accuracy_back, IoU, out_logits_out, grads
+        tboard_log_folder = os.path.join(model_save_dir, model_name)
+        if not os.path.exists(tboard_log_folder): 
+            os.mkdir(tboard_log_folder)
+        train_writer = tf.summary.FileWriter(tboard_log_folder, sess.graph)
+
         with sess.as_default():
 
             if weights_path is None:
@@ -255,13 +274,19 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg'):
                         except Exception as e:
                             print("Exception while loading vgg", e) #anelise
                             continue
+
+        #with tf.name_scope('performance'): 
+        #    tf_
+
         tf.train.start_queue_runners(sess=sess)
         for epoch in range(CFG.TRAIN.EPOCHS):
             t_start = time.time()
 
-            _, c, train_accuracy, train_accuracy_back, train_instance_loss, train_existence_loss, _ = \
-                sess.run([train_op, total_loss, accuracy, accuracy_back, instance_loss, existence_loss, out_logits_out],
+            summary, _, c, train_accuracy, train_accuracy_back, train_instance_loss, train_existence_loss, _ = \
+                sess.run([merged, train_op, total_loss, accuracy, accuracy_back, instance_loss, existence_loss, out_logits_out],
                          feed_dict={phase: 'train'})
+
+            train_writer.add_summary(summary, epoch)
 
             cost_time = time.time() - t_start
             train_cost_time_mean.append(cost_time)

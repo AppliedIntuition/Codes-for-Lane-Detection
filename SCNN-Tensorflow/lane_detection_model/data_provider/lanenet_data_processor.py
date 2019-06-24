@@ -9,8 +9,9 @@
 实现LaneNet的数据解析类
 """
 import tensorflow as tf
+import os
 
-from config import global_config
+from ..config import global_config
 
 CFG = global_config.cfg
 VGG_MEAN = [123.68, 116.779, 103.939]
@@ -21,12 +22,13 @@ class DataSet(object):
     实现数据集类
     """
 
-    def __init__(self, dataset_info_file):
+    def __init__(self, dataset_info_file, data_bp=""):
         """
         :param dataset_info_file:
         """
         self._len = 0
         self.dataset_info_file = dataset_info_file
+        self._data_bp = data_bp
         self._img, self._label_instance, self._label_existence = self._init_dataset()
 
     def __len__(self):
@@ -34,12 +36,16 @@ class DataSet(object):
 
     @staticmethod
     def process_img(img_queue):
+#        try: 
         img_raw = tf.read_file(img_queue)
         img_decoded = tf.image.decode_jpeg(img_raw, channels=3)
         img_resized = tf.image.resize_images(img_decoded, [CFG.TRAIN.IMG_HEIGHT, CFG.TRAIN.IMG_WIDTH],
                                              method=tf.image.ResizeMethod.BICUBIC)
         img_casted = tf.cast(img_resized, tf.float32)
         return tf.subtract(img_casted, VGG_MEAN)
+#        except tf.errors.NotFoundError: 
+#            print("img_queue", img_queue)
+#            #raise FileNotFoundError("Could not find image with uri %s" % img_queue)
 
     @staticmethod
     def process_label_instance(label_instance_queue):
@@ -69,10 +75,11 @@ class DataSet(object):
         with open(self.dataset_info_file, 'r') as file:
             for _info in file:
                 info_tmp = _info.strip(' ').split()
-
-                img_list.append(info_tmp[0][1:])
-                label_instance_list.append(info_tmp[1][1:])
-                label_existence_list.append([int(info_tmp[2]), int(info_tmp[3]), int(info_tmp[4]), int(info_tmp[5])])
+                imfile, laneseg_file, l1_exist, l2_exist, l3_exist, l4_exist = info_tmp
+                #img_list.append(info_tmp[0][1:])
+                img_list.append(os.path.join(self._data_bp, imfile))
+                label_instance_list.append(os.path.join(self._data_bp, laneseg_file))
+                label_existence_list.append([int(l1_exist), int(l2_exist), int(l3_exist), int(l4_exist)])
 
         self._len = len(img_list)
         # img_queue = tf.train.string_input_producer(img_list)
