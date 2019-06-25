@@ -50,6 +50,8 @@ __C.TRAIN.IMG_WIDTH = 800  # 512
 __C.TRAIN.GPU_NUM = 1 # 4   # 8
 # Set CPU thread number
 __C.TRAIN.CPU_NUM = 4   #
+# Number of epochs at which you run the val set
+__C.TRAIN.VAL_EPOCH_INTERVAL = 1000
 
 # Test options
 __C.TEST = edict()

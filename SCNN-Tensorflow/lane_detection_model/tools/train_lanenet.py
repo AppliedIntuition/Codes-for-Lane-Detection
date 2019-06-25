@@ -89,6 +89,7 @@ def forward(batch_queue, net, phase, scope, optimizer=None):
     out_logits = tf.nn.softmax(logits=out_logits)
     out_logits_out = tf.argmax(out_logits, axis=-1)
 
+    # counts the number of pixels where the model *correctly* predicted class 0 (background) 
     pred_0 = tf.count_nonzero(tf.multiply(tf.cast(tf.equal(label_instance_batch, 0), tf.int32),
                                           tf.cast(tf.equal(out_logits_out, 0), tf.int32)),
                               dtype=tf.int32)
@@ -104,15 +105,22 @@ def forward(batch_queue, net, phase, scope, optimizer=None):
     pred_4 = tf.count_nonzero(tf.multiply(tf.cast(tf.equal(label_instance_batch, 4), tf.int32),
                                           tf.cast(tf.equal(out_logits_out, 4), tf.int32)),
                               dtype=tf.int32)
+
+    # number of gt pixels that are not background
     gt_all = tf.count_nonzero(tf.cast(tf.greater(label_instance_batch, 0), tf.int32), dtype=tf.int32)
+    # number of gt pixels that *are* background
     gt_back = tf.count_nonzero(tf.cast(tf.equal(label_instance_batch, 0), tf.int32), dtype=tf.int32)
 
     pred_all = tf.add(tf.add(tf.add(pred_1, pred_2), pred_3), pred_4)
 
+    # accuracy at predicting the lane lines; number of lane pixels that were
+    # correctly identified over total number of lane pixels
     accuracy = tf.divide(tf.cast(pred_all, tf.float32), tf.cast(gt_all, tf.float32))
+    # accuracy at predicting the background; number of correctly identified
+    # background pixels over total number of background pixels
     accuracy_back = tf.divide(tf.cast(pred_0, tf.float32), tf.cast(gt_back, tf.float32))
 
-    #not  Computj mIoU of Lanes
+    # Compute mIoU of Lanes
     overlap_1 = pred_1
     union_1 = tf.add(tf.count_nonzero(tf.cast(tf.equal(label_instance_batch, 1),
                                               tf.int32), dtype=tf.int32),
@@ -193,21 +201,27 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=N
         for i in range(CFG.TRAIN.GPU_NUM):
             with tf.device('/gpu:%d' % i):
                 # training pass
-                with tf.name_scope('tower_%d' % i) as scope:
-                    total_loss, instance_loss, existence_loss, accuracy, accuracy_back, _, out_logits_out, \
+                with tf.name_scope('train_tower_%d' % i) as scope:
+                    total_loss, instance_loss, existence_loss, accuracy, accuracy_back, IoU, out_logits_out, \
                         grad = forward(batch_queue, net, phase, scope, optimizer)
                     tower_grads.append(grad)
                     tf.summary.scalar('total_loss', total_loss)
                     tf.summary.scalar('instance_loss', instance_loss)
                     tf.summary.scalar('existence_loss', existence_loss)
-                    tf.summary.scalar('accuracy', accuracy)
-                    tf.summary.scalar('accuracy_back', accuracy_back)
+                    tf.summary.scalar('accuracy_lanes', accuracy)
+                    tf.summary.scalar('accuracy_background', accuracy_back)
+                    tf.summary.scalar('IoU', IoU)
                     #tf.summary.scalar('grad', grad)
                 # val pass
-                with tf.name_scope('test_%d' % i) as scope:
+                with tf.name_scope('val_tower_%d' % i) as scope:
                     val_op_total_loss, val_op_instance_loss, val_op_existence_loss, val_op_accuracy, \
                         val_op_accuracy_back, val_op_IoU, _, _ = forward(val_batch_queue, net, phase, scope)
-
+                    tf.summary.scalar('total_loss', val_op_total_loss)
+                    tf.summary.scalar('instance_loss', val_op_instance_loss)
+                    tf.summary.scalar('existence_loss', val_op_existence_loss)
+                    tf.summary.scalar('accuracy_lanes', val_op_accuracy)
+                    tf.summary.scalar('accuracy_background', val_op_accuracy_back)
+                    tf.summary.scalar('IoU', val_op_IoU)
 
     grads = average_gradients(tower_grads)
 
@@ -234,7 +248,8 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=N
 
     with tf.Session(config=sess_config) as sess:
         # set up tensorboard logging
-        merged = tf.summary.merge_all()
+        merged_train_pass = tf.summary.merge_all(scope="train_tower.*")
+        merged_val_pass = tf.summary.merge_all(scope="val_tower.*")
         # vars to track: 
         # total_loss, instance_loss, existence_loss, accuracy, accuracy_back, IoU, out_logits_out, grads
         tboard_log_folder = os.path.join(model_save_dir, model_name)
@@ -275,18 +290,15 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=N
                             print("Exception while loading vgg", e) #anelise
                             continue
 
-        #with tf.name_scope('performance'): 
-        #    tf_
-
         tf.train.start_queue_runners(sess=sess)
         for epoch in range(CFG.TRAIN.EPOCHS):
             t_start = time.time()
 
-            summary, _, c, train_accuracy, train_accuracy_back, train_instance_loss, train_existence_loss, _ = \
-                sess.run([merged, train_op, total_loss, accuracy, accuracy_back, instance_loss, existence_loss, out_logits_out],
+            summary_train, _, c, train_accuracy, train_accuracy_back, train_instance_loss, train_existence_loss, _ = \
+                sess.run([merged_train_pass, train_op, total_loss, accuracy, accuracy_back, instance_loss, existence_loss, out_logits_out],
                          feed_dict={phase: 'train'})
 
-            train_writer.add_summary(summary, epoch)
+            train_writer.add_summary(summary_train, epoch)
 
             cost_time = time.time() - t_start
             train_cost_time_mean.append(cost_time)
@@ -318,7 +330,7 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=N
             if epoch % 1000 == 0:
                 saver.save(sess=sess, save_path=model_save_path, global_step=epoch)
 
-            if epoch % 10000 != 0 or epoch == 0:
+            if epoch % CFG.TRAIN.VAL_EPOCH_INTERVAL != 0 or epoch == 0:
                 continue
 
             val_cost_time_mean = []
@@ -329,12 +341,15 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=N
             val_IoU_mean = []
 
             for epoch_val in range(int(len(val_dataset) / CFG.TRAIN.VAL_BATCH_SIZE / CFG.TRAIN.GPU_NUM)):
+            #for epoch_val in range(1): 
                 t_start_val = time.time()
-                c_val, val_accuracy, val_accuracy_back, val_IoU, val_instance_loss, val_existence_loss = \
+                summary_val, c_val, val_accuracy, val_accuracy_back, val_IoU, val_instance_loss, val_existence_loss = \
                     sess.run(
-                        [val_op_total_loss, val_op_accuracy, val_op_accuracy_back,
+                        [merged_val_pass, val_op_total_loss, val_op_accuracy, val_op_accuracy_back,
                          val_op_IoU, val_op_instance_loss, val_op_existence_loss],
                         feed_dict={phase: 'test'})
+
+                train_writer.add_summary(summary_val, epoch_val)
 
                 cost_time_val = time.time() - t_start_val
                 val_cost_time_mean.append(cost_time_val)
