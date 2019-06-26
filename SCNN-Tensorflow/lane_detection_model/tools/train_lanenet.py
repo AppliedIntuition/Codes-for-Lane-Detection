@@ -164,7 +164,13 @@ def forward(batch_queue, net, phase, scope, optimizer=None):
     return total_loss, instance_loss, existence_loss, accuracy, accuracy_back, IoU, out_logits_out, grads
 
 
-def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=None):
+def train_net(
+        dataset_dir, 
+        weights_path=None, 
+        net_flag='vgg', 
+        dataset_list_dir=None, 
+        model_save_dir = 'model/culane_lanenet/culane_scnn'):
+
     if dataset_list_dir is None: 
         dataset_list_dir = dataset_dir
 
@@ -234,11 +240,11 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=N
     train_accuracy_back_mean = []
 
     saver = tf.train.Saver()
-    model_save_dir = 'model/culane_lanenet/culane_scnn'
+    #model_save_dir = 'model/culane_lanenet/culane_scnn'
     if not ops.exists(model_save_dir):
         os.makedirs(model_save_dir)
     train_start_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(time.time()))
-    model_name = 'culane_lanenet_{:s}_{:s}.ckpt'.format(net_flag, str(train_start_time))
+    model_name = 'scnn_{:s}_{:s}.ckpt'.format(net_flag, str(train_start_time))
     model_save_path = ops.join(model_save_dir, model_name)
 
     sess_config = tf.ConfigProto(device_count={'GPU': CFG.TRAIN.GPU_NUM}, allow_soft_placement=True)
@@ -349,7 +355,7 @@ def train_net(dataset_dir, weights_path=None, net_flag='vgg', dataset_list_dir=N
                          val_op_IoU, val_op_instance_loss, val_op_existence_loss],
                         feed_dict={phase: 'test'})
 
-                train_writer.add_summary(summary_val, epoch_val)
+                train_writer.add_summary(summary_val, epoch + epoch_val)
 
                 cost_time_val = time.time() - t_start_val
                 val_cost_time_mean.append(cost_time_val)
