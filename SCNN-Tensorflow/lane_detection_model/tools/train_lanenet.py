@@ -24,6 +24,7 @@ from ..lanenet_model import lanenet_merge_model
 from ..data_provider import lanenet_data_processor
 
 CFG = global_config.cfg
+VGG_WEIGHTS_PATH = os.path.expanduser("~/applied/lane_detection/scnn/SCNN-Tensorflow/lane_detection_model/data/vgg16.npy")
 
 
 def init_args():
@@ -169,7 +170,7 @@ def train_net(
         weights_path=None, 
         net_flag='vgg', 
         dataset_list_dir=None, 
-        model_save_dir = 'model/culane_lanenet/culane_scnn'):
+        model_save_dir = '../models/culane_lanenet/culane_scnn'):
 
     if dataset_list_dir is None: 
         dataset_list_dir = dataset_dir
@@ -276,9 +277,8 @@ def train_net(
             # 加载预训练参数
             if net_flag == 'vgg' and weights_path is None:
                 # load pretrained vgg weights 
-                pretrained_weights = np.load(
-                    './data/vgg16.npy',
-                    encoding='latin1').item()
+                pretrained_weights = np.load(VGG_WEIGHTS_PATH,
+                    encoding='latin1', allow_pickle=True).item()
 
                 for vv in tf.trainable_variables():
                     # traininable variables contains all the variables in the current computation graph 
@@ -293,6 +293,8 @@ def train_net(
                             _op = tf.assign(vv, weights)
                             sess.run(_op)
                         except Exception as e:
+                            # I'm going to ignore these errors for now, bc this
+                            # except block makes me think they are expected
                             print("Exception while loading vgg", e) #anelise
                             continue
 

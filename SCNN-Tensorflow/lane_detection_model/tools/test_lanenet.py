@@ -17,6 +17,7 @@ import glog as log
 import cv2
 import glob
 import tqdm
+import numpy as np
 
 try:
     from cv2 import cv2
@@ -91,6 +92,11 @@ def test_lanenet(image_path, image_bp, weights_path, use_gpu, batch_size, save_d
                     os.makedirs(os.path.dirname(savepath))
                 filename_exist = os.path.splitext(savepath)[0] + '.exist.txt'
                 file_exist = open(filename_exist, 'w')
+
+                all_lanes_im = np.sum(instance_seg_image[cnt, :, :, 1:], axis=-1)
+                cv2.imwrite(os.path.splitext(savepath)[0] + '_avg.png',
+                    (all_lanes_im * 255).astype(int))
+                
                 for cnt_img in range(4):
                     cv2.imwrite(os.path.splitext(savepath)[0] + '_' + str(cnt_img + 1) + '_avg.png',
                             (instance_seg_image[cnt, :, :, cnt_img + 1] * 255).astype(int))
