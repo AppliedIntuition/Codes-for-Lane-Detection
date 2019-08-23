@@ -1,23 +1,11 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# @Time    : 17-9-18 下午3:59
-# @Author  : Luo Yao
-# @Site    : http://github.com/TJCVRS
-# @File    : cnn_basenet.py
-# @IDE: PyCharm Community Edition
-"""
-The base convolution neural networks mainly implement some useful cnn functions
-"""
 import tensorflow as tf
 import tensorflow.contrib.layers as tf_layer
 from tensorflow.contrib.layers.python.layers import initializers
 import numpy as np
 
-slim = tf.contrib.slim
-
 class CNNBaseModel(object):
     """
-    Base model for other specific cnn ctpn_models
+    Base model implementing some common layers in neural networks. 
     """
 
     def __init__(self):
@@ -27,22 +15,6 @@ class CNNBaseModel(object):
     def conv2d(inputdata, out_channel, kernel_size, padding='SAME',
                stride=1, w_init=None, b_init=None,
                split=1, use_bias=True, data_format='NHWC', name=None):
-        """
-        Packing the tensorflow conv2d function.
-        :param name: op name
-        :param inputdata: A 4D tensorflow tensor which ust have known number of channels, but can have other
-        unknown dimensions.
-        :param out_channel: number of output channel.
-        :param kernel_size: int so only support square kernel convolution
-        :param padding: 'VALID' or 'SAME'
-        :param stride: int so only support square stride
-        :param w_init: initializer for convolution weights
-        :param b_init: initializer for bias
-        :param split: split channels as used in Alexnet mainly group for GPU memory save.
-        :param use_bias:  whether to use bias.
-        :param data_format: default set to NHWC according tensorflow
-        :return: tf.Tensor named ``output``
-        """
         with tf.variable_scope(name):
             in_shape = inputdata.get_shape().as_list()
             channel_axis = 3 if data_format == 'NHWC' else 1
@@ -92,37 +64,15 @@ class CNNBaseModel(object):
 
     @staticmethod
     def relu(inputdata, name=None):
-        """
-
-        :param name:
-        :param inputdata:
-        :return:
-        """
         return tf.nn.relu(features=inputdata, name=name)
 
     @staticmethod
     def sigmoid(inputdata, name=None):
-        """
-
-        :param name:
-        :param inputdata:
-        :return:
-        """
         return tf.nn.sigmoid(x=inputdata, name=name)
 
     @staticmethod
     def maxpooling(inputdata, kernel_size, stride=None, padding='VALID',
                    data_format='NHWC', name=None):
-        """
-
-        :param name:
-        :param inputdata:
-        :param kernel_size:
-        :param stride:
-        :param padding:
-        :param data_format:
-        :return:
-        """
         padding = padding.upper()
 
         if stride is None:
@@ -148,16 +98,6 @@ class CNNBaseModel(object):
     @staticmethod
     def avgpooling(inputdata, kernel_size, stride=None, padding='VALID',
                    data_format='NHWC', name=None):
-        """
-
-        :param name:
-        :param inputdata:
-        :param kernel_size:
-        :param stride:
-        :param padding:
-        :param data_format:
-        :return:
-        """
         if stride is None:
             stride = kernel_size
 
@@ -171,13 +111,6 @@ class CNNBaseModel(object):
 
     @staticmethod
     def globalavgpooling(inputdata, data_format='NHWC', name=None):
-        """
-
-        :param name:
-        :param inputdata:
-        :param data_format:
-        :return:
-        """
         assert inputdata.shape.ndims == 4
         assert data_format in ['NHWC', 'NCHW']
 
@@ -188,15 +121,6 @@ class CNNBaseModel(object):
     @staticmethod
     def layernorm(inputdata, epsilon=1e-5, use_bias=True, use_scale=True,
                   data_format='NHWC', name=None):
-        """
-        :param name:
-        :param inputdata:
-        :param epsilon: epsilon to avoid divide-by-zero.
-        :param use_bias: whether to use the extra affine transformation or not.
-        :param use_scale: whether to use the extra affine transformation or not.
-        :param data_format:
-        :return:
-        """
         shape = inputdata.get_shape().as_list()
         ndims = len(shape)
         assert ndims in [2, 4]
@@ -227,15 +151,6 @@ class CNNBaseModel(object):
 
     @staticmethod
     def instancenorm(inputdata, epsilon=1e-5, data_format='NHWC', use_affine=True, name=None):
-        """
-
-        :param name:
-        :param inputdata:
-        :param epsilon:
-        :param data_format:
-        :param use_affine:
-        :return:
-        """
         shape = inputdata.get_shape().as_list()
         if len(shape) != 4:
             raise ValueError("Input data of instancebn layer has to be 4D tensor")
@@ -264,14 +179,6 @@ class CNNBaseModel(object):
 
     @staticmethod
     def dropout(inputdata, keep_prob, is_training=None, noise_shape=None, name=None):
-        """
-
-        :param name:
-        :param inputdata:
-        :param keep_prob:
-        :param noise_shape:
-        :return:
-        """
         def f1():
             """
 
@@ -302,13 +209,15 @@ class CNNBaseModel(object):
         Fully-Connected layer, takes a N>1D tensor and returns a 2D tensor.
         It is an equivalent of `tf.layers.dense` except for naming conventions.
 
-        :param inputdata:  a tensor to be flattened except for the first dimension.
-        :param out_dim: output dimension
-        :param w_init: initializer for w. Defaults to `variance_scaling_initializer`.
-        :param b_init: initializer for b. Defaults to zero
-        :param use_bias: whether to use bias.
-        :param name:
-        :return: tf.Tensor: a NC tensor named ``output`` with attribute `variables`.
+        Args: 
+            inputdata:  a tensor to be flattened except for the first dimension.
+            out_dim: output dimension
+            w_init: initializer for w. Defaults to `variance_scaling_initializer`.
+            b_init: initializer for b. Defaults to zero
+            use_bias: whether to use bias.
+            name: name to use for context
+        Return: 
+            tf.Tensor: a NC tensor named ``output`` with attribute `variables`.
         """
         shape = inputdata.get_shape().as_list()[1:]
         if None not in shape:
@@ -329,30 +238,13 @@ class CNNBaseModel(object):
 
     @staticmethod
     def layerbn(inputdata, is_training, name):
-        """
-
-        :param inputdata:
-        :param is_training:
-        :param name:
-        :return:
-        """
         def f1():
-            """
-
-            :return:
-            """
-            # print('batch_normalization: train phase')
             return tf_layer.batch_norm(
                              inputdata, is_training=True,
                              center=True, scale=True, updates_collections=None,
                              scope=name, reuse=False)
 
         def f2():
-            """
-
-            :return:
-            """
-            # print('batch_normalization: test phase')
             return tf_layer.batch_norm(
                              inputdata, is_training=False,
                              center=True, scale=True, updates_collections=None,
@@ -364,13 +256,6 @@ class CNNBaseModel(object):
 
     @staticmethod
     def squeeze(inputdata, axis=None, name=None):
-        """
-
-        :param inputdata:
-        :param axis:
-        :param name:
-        :return:
-        """
         return tf.squeeze(input=inputdata, axis=axis, name=name)
 
     @staticmethod
@@ -378,22 +263,6 @@ class CNNBaseModel(object):
                  stride=1, w_init=None, b_init=None,
                  use_bias=True, activation=None, data_format='channels_last',
                  trainable=True, name=None):
-        """
-        Packing the tensorflow conv2d function.
-        :param name: op name
-        :param inputdata: A 4D tensorflow tensor which ust have known number of channels, but can have other
-        unknown dimensions.
-        :param out_channel: number of output channel.
-        :param kernel_size: int so only support square kernel convolution
-        :param padding: 'VALID' or 'SAME'
-        :param stride: int so only support square stride
-        :param w_init: initializer for convolution weights
-        :param b_init: initializer for bias
-        :param activation: whether to apply a activation func to deconv result
-        :param use_bias:  whether to use bias.
-        :param data_format: default set to NHWC according tensorflow
-        :return: tf.Tensor named ``output``
-        """
         with tf.variable_scope(name):
             in_shape = inputdata.get_shape().as_list()
             channel_axis = 3 if data_format == 'channels_last' else 1
@@ -420,19 +289,6 @@ class CNNBaseModel(object):
     @staticmethod
     def dilation_conv(input_tensor, k_size, out_dims, rate, padding='SAME',
                       w_init=None, b_init=None, use_bias=False, name=None):
-        """
-
-        :param input_tensor:
-        :param k_size:
-        :param out_dims:
-        :param rate:
-        :param padding:
-        :param w_init:
-        :param b_init:
-        :param use_bias:
-        :param name:
-        :return:
-        """
         with tf.variable_scope(name):
             in_shape = input_tensor.get_shape().as_list()
             in_channel = in_shape[3]

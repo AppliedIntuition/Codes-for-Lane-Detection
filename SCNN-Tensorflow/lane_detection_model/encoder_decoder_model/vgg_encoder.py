@@ -206,6 +206,7 @@ class VGG16Encoder(cnn_basenet.CNNBaseModel):
             feature_list_old = []
             feature_list_new = []
             for cnt in range(conv_5_5.get_shape().as_list()[1]):
+                # split the layers along the width dimension 
                 feature_list_old.append(tf.expand_dims(conv_5_5[:, cnt, :, :], axis=1))
             feature_list_new.append(tf.expand_dims(conv_5_5[:, 0, :, :], axis=1))
 

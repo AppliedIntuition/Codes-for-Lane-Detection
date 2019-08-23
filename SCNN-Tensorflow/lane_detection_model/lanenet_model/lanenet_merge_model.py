@@ -12,10 +12,6 @@ import tensorflow as tf
 
 from ..encoder_decoder_model import vgg_encoder
 from ..encoder_decoder_model import cnn_basenet
-from ..config import global_config
-
-CFG = global_config.cfg
-
 
 # anelise: As far as I can tell, this does not have any relationship to the
 # actual LaneNet architecture, except perhaps being derived from a shared
